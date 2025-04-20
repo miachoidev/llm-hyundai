@@ -12,38 +12,73 @@ from langchain_community.retrievers import BM25Retriever
 from langchain.retrievers import EnsembleRetriever
 from chunker import convert_docx_to_chunks
 from langchain_community.vectorstores.utils import filter_complex_metadata
-import concurrent.futures
 
 # 페이지 설정
 st.set_page_config(page_title="열차 사양서 분석기", page_icon="🚄", layout="wide")
 
 # 제목 및 설명
-st.header("🚄 현대로템 - 열차 공고사양 자동 분석(PoC)")
+st.title("🚄 현대로템 - 열차 공고사양 자동 분석(PoC)")
 st.markdown(
     """📄 본 시스템은 PoC(Proof of Concept)용으로, 공고 사양서 기반 사양 추출 및 평가 자동화를 시연합니다.  
-🧪 사전에 정답이 포함된 데이터셋으로 LLM 추론 및 검색 성능을 평가합니다.
-열차 제작 공고 사양서를 업로드 후 모델을 선택하고 '사양 추출 시작' 버튼을 누르세요.  
+🧪 사전에 정답이 포함된 데이터셋으로 LLM 추론 및 검색 성능을 평가합니다.  
 
-📊 평가: 
+🔧 사용 방법:  
+1️⃣ 열차 제작 공고 사양서를 업로드 후 모델을 선택하고 '사양 추출 시작' 버튼을 누르세요.  
+2️⃣ RAG (Retrieval-Augmented Generation) 기법을 이용하여 문서에서 스펙 정보를 자동 추출합니다.  
+3️⃣ 분석 결과는 CSV 파일로 다운로드 가능합니다.  
+
+📊 모델 평가: 본 PoC는 사양서 기반 정보 추출 정확도와 검색 재현율이 핵심  
 LLM 추론 성능 평가 : 정답 기준 F1 / EM(Exact Match)  
 RAG 검색 성능 측정 : Recall@K 방식으로 측정  
 """
 )
 
-# 데이터프레임에서 표시할 열 목록 정의
-DISPLAY_COLUMNS = [
-    "레벨1",
-    "레벨2",
-    "레벨3",
-    "레벨4",
-    "정답",
-    "정답 목차",
-    "LLM응답",
-    "참조문서목차",
-    "참조문서",
-    "정답여부",
-    "검색성공여부",
-]
+
+# 정답 평가 함수 정의
+def extract_numbers(text):
+    if not isinstance(text, str):
+        return []
+    return re.findall(r"\d+\.?\d*", text)
+
+
+def is_answer_correct(pred, answer):
+    if not isinstance(pred, str) or not isinstance(answer, str):
+        return False
+
+    pred_numbers = extract_numbers(pred)
+    answer_numbers = extract_numbers(answer)
+
+    # 숫자 비교 우선
+    if pred_numbers and answer_numbers:
+        return pred_numbers == answer_numbers
+
+    # 숫자가 없거나 비교 불가능하면 문자열 유사도 비교 (서술형)
+    similarity = SequenceMatcher(None, pred.strip(), answer.strip()).ratio()
+    return similarity >= 0.9  # 임계값은 상황에 따라 조정 가능
+
+
+def is_correct_chunk(answer_chunk, reference_chunks):
+    # 문자열 비교가 아닌 Document 객체 리스트에서 정답 문서 내용 확인
+    if isinstance(reference_chunks, str) and "Document" in reference_chunks:
+        try:
+            # 참조 문서가 문자열로 저장된 경우, page_content 값들을 추출
+            for chunk in reference_chunks.split("Document("):
+                if answer_chunk in chunk and "page_content" in chunk:
+                    # page_content 부분에서 정답 문서가 포함되어 있는지 확인
+                    content_part = (
+                        chunk.split("page_content='")[1].split("')")[0]
+                        if "page_content='" in chunk
+                        else ""
+                    )
+                    if content_part and answer_chunk in content_part:
+                        return True
+            return False
+        except Exception:
+            # 파싱 에러 발생 시 기존 방식으로 비교
+            return answer_chunk == reference_chunks
+    else:
+        # 기존 방식 유지 (문자열 직접 비교)
+        return answer_chunk == reference_chunks
 
 
 # CSV 파일에서 테이블 데이터 로드
@@ -59,10 +94,10 @@ def load_table_data():
         # 오류 발생 시 기본 데이터프레임 반환
         return pd.DataFrame(
             {
-                "레벨1": ["오류", "CSV 파일을 찾을 수 없습니다"],
-                "레벨2": ["", ""],
-                "레벨3": ["", ""],
-                "레벨4": ["", ""],
+                "레이블1": ["오류", "CSV 파일을 찾을 수 없습니다"],
+                "레이블2": ["", ""],
+                "레이블3": ["", ""],
+                "레이블4": ["", ""],
                 "표준단위": ["", ""],
                 "정답": ["", ""],  # 정답 컬럼 추가
             }
@@ -153,6 +188,7 @@ def generate_queries(row):
     llm_queries = [q.strip() for q in response.strip().split("\n") if q.strip()]
     for i, q in enumerate(llm_queries):
         queries.append({"type": f"llm_generated_{i+1}", "query": q})
+    print("queries::", queries)
     return queries
 
 
@@ -196,11 +232,12 @@ with st.sidebar:
     model_option = st.radio(
         "LLM 모델 선택", ["GPT-4", "Claude 3 Opus", "Claude 3 Sonnet"]
     )
+
     # 추출 시작 버튼
-    start_button = st.button("사양 추출 시작", type="primary", use_container_width=True)
+    start_button = st.button("사양 추출 시작", type="primary")
 
     # 초기화 버튼 추가
-    reset_button = st.button("결과 초기화", use_container_width=True)
+    reset_button = st.button("결과 초기화")
 
     # 추가 정보
     st.info(
@@ -219,11 +256,9 @@ if reset_button:
 
 
 # 데이터 프레임 영역 - 항상 표시
+st.subheader("열차 사양 분석 항목")
 result_placeholder = st.empty()
-# 사용자가 원하는 열만 표시 (데이터는 모두 유지)
-result_placeholder.dataframe(
-    st.session_state.result_df[DISPLAY_COLUMNS], use_container_width=True
-)
+result_placeholder.dataframe(st.session_state.result_df, use_container_width=True)
 
 # 성능 평가 버튼 영역
 evaluate_placeholder = st.empty()
@@ -236,15 +271,15 @@ download_placeholder = st.empty()
 
 
 # 성능 평가 llm 처리
-def evaluate_llm(gold_answer, gold_doc, pred, ref_doc):
+def evaluate_llm(pred, answer, answer_doc, ref_doc):
     llm = ChatOpenAI(temperature=0.2, model="gpt-4o-mini")
     ev_prompt = f"""다음은 정답과 정답의 근거 문서 입니다.
-    정답: {gold_answer}
-    정답 출처: {gold_doc}
+    정답: {pred}
+    정답 출처: {answer_doc}
     
     위 정답과 자동 추출 결과 값이 같은지 true/false로 답해주세요. 숫자 값이나 단위, 설명 등 같은 의미를 가지는 경우 같은 값으로 판단합니다.
     또한 rag로 검색한 청크들 중 위 정답 출처 문서 내용이 있는지 확인하여 true/false로 답해주세요. 
-    추출 결과: {pred}
+    추출 결과: {answer}
     rag 검색한 참조 청크들: {ref_doc}
 
     답변 형식:
@@ -252,6 +287,7 @@ def evaluate_llm(gold_answer, gold_doc, pred, ref_doc):
     청크 검색 성공 여부: true/false
     """
     response = llm.predict(ev_prompt)
+    print("evaluate_llm::", response)
 
     answer_correct = (
         response.split("정답 일치 여부:")[1].split("청크 검색 성공 여부:")[0].strip()
@@ -264,50 +300,36 @@ def evaluate_llm(gold_answer, gold_doc, pred, ref_doc):
 
 # 성능 평가 처리
 def evaluate_performance():
-    status_placeholder.info("성능 평가 진행 중...")
-
-    # 병렬 처리용 함수 정의
-    def process_evaluation(args):
-        index, row = args
-        try:
-            answer_correct, search_success = evaluate_llm(
-                row["정답"], row["정답 문서"], row["LLM응답"], row["참조문서"]
-            )
-            return index, answer_correct, search_success
-        except Exception as e:
-            print(f"항목 {index} 평가 중 오류 발생: {e}")
-            return index, False, False
-
-    # 병렬 처리 실행
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        futures = [
-            executor.submit(process_evaluation, (index, row))
-            for index, row in st.session_state.result_df.iterrows()
-        ]
-
-        # 결과를 저장할 딕셔너리 초기화
-        results_dict = {"정답여부": {}, "검색성공여부": {}}
-
-        # 결과가 완료되는 대로 처리
-        for future in concurrent.futures.as_completed(futures):
-            try:
-                index, answer_correct, search_success = future.result()
-                results_dict["정답여부"][index] = answer_correct
-                results_dict["검색성공여부"][index] = search_success
-            except Exception as e:
-                print(f"평가 결과 처리 중 오류 발생: {e}")
-
-    # 결과를 데이터프레임에 일괄 할당
-    for index, is_correct in results_dict["정답여부"].items():
-        st.session_state.result_df.loc[index, "정답여부"] = is_correct
-
-    for index, is_success in results_dict["검색성공여부"].items():
-        st.session_state.result_df.loc[index, "검색성공여부"] = is_success
-
-    # 스타일링 없이 데이터프레임 표시
-    result_placeholder.dataframe(
-        st.session_state.result_df[DISPLAY_COLUMNS], use_container_width=True
+    # 정답여부와 검색성공여부 한번에 계산
+    results = st.session_state.result_df.apply(
+        lambda row: evaluate_llm(
+            row["LLM응답"], row["정답"], row["정답 문서"], row["참조문서"]
+        ),
+        axis=1,
     )
+
+    # 결과를 각 열에 할당
+    st.session_state.result_df["정답여부"] = [result[0] for result in results]
+    st.session_state.result_df["검색성공여부"] = [result[1] for result in results]
+
+    # 데이터프레임 스타일링 함수
+    def highlight_correct(row):
+        if row["정답여부"]:
+            return [
+                "background-color: #CCFFCC" if col == "LLM응답" else ""
+                for col in row.index
+            ]
+        else:
+            return [
+                "background-color: #FFCCCC" if col == "LLM응답" else ""
+                for col in row.index
+            ]
+
+    # 스타일링 적용
+    styled_df = st.session_state.result_df.style.apply(highlight_correct, axis=1)
+
+    # 결과 표시
+    result_placeholder.dataframe(styled_df, use_container_width=True)
 
     # 정답률 계산
     correct = st.session_state.result_df["정답여부"].sum()
@@ -323,8 +345,6 @@ def evaluate_performance():
         f"검색 재현율: {recall:.0%} ({hit}/{total})"
     )
 
-    status_placeholder.success("성능 평가 완료!")
-
 
 # 분석 처리
 if start_button and uploaded_file is not None:
@@ -337,6 +357,7 @@ if start_button and uploaded_file is not None:
 
         # OpenAI 임베딩 모델 초기화
         embeddings = OpenAIEmbeddings()
+        print("embeddings 변수 초기화 완료")
 
         # Chroma 벡터 스토어 생성 - 공식 문서 방식대로
         vectorstore = Chroma(
@@ -357,17 +378,24 @@ if start_button and uploaded_file is not None:
         )
 
         # 문서 청킹/벡터화 완료 후 데이터 추출 시작
-        status_placeholder.success("문서 벡터화 완료. 사양 정보 병렬 추출 중...")
+        status_placeholder.success("문서 벡터화 완료. 사양 정보 추출 중...")
 
-        # 병렬 처리 함수 정의
-        def process_row(args):
-            index, row = args
+        total_rows = len(st.session_state.result_df)
+        progress_bar = st.progress(0)
+
+        for index, row in st.session_state.result_df.iterrows():
+            # 진행 상태 표시
+            progress = (index + 1) / total_rows
+            progress_bar.progress(progress)
+
+            status_placeholder.info(f"항목 {index+1}/{total_rows} 처리 중...")
+
             ensemble_docs = []
             queries = generate_queries(row)
             for query in queries:
                 docs = ensemble.get_relevant_documents(query["query"])
+                print("docs::", docs)
                 ensemble_docs.extend(docs)
-
             # 중복 제거
             unique_docs = {}
             for doc in ensemble_docs:
@@ -378,7 +406,6 @@ if start_button and uploaded_file is not None:
                     doc_key = doc.page_content
                 unique_docs[doc_key] = doc
             ensemble_docs = list(unique_docs.values())
-
             # 빈 쿼리 제외
             filtered_queries = [
                 query["query"] for query in queries if query["query"].strip()
@@ -406,36 +433,22 @@ if start_button and uploaded_file is not None:
             answer = llm.predict(answer_prompt)
             values = answer.split("답변:")[1].split(", 참조문서:")[0].strip()
             doc_index = answer.split("참조문서:")[-1].strip()
+            print("답변::", values)
+            print("참조문서::", doc_index)
 
-            return index, values, doc_index, str(ensemble_docs)
+            # 값 할당 시 데이터 타입 문제 방지
+            st.session_state.result_df.loc[index, "LLM응답"] = str(values)
+            st.session_state.result_df.loc[index, "참조문서목차"] = str(doc_index)
 
-        # 병렬 처리 실행
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [
-                executor.submit(process_row, (index, row))
-                for index, row in st.session_state.result_df.iterrows()
-            ]
+            # 객체를 직접 저장하면 문제가 발생할 수 있으므로 문자열로 변환
+            st.session_state.result_df.loc[index, "참조문서"] = str(ensemble_docs)
 
-            # 결과가 완료되는 대로 처리
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    index, values, doc_index, docs_str = future.result()
+            # 각 항목 처리 후 UI 업데이트
+            result_placeholder.dataframe(
+                st.session_state.result_df, use_container_width=True
+            )
 
-                    # 값 할당 시 데이터 타입 문제 방지
-                    st.session_state.result_df.loc[index, "LLM응답"] = str(values)
-                    st.session_state.result_df.loc[index, "참조문서목차"] = str(
-                        doc_index
-                    )
-                    st.session_state.result_df.loc[index, "참조문서"] = docs_str
-
-                    # 각 항목 처리 후 UI 업데이트
-                    result_placeholder.dataframe(
-                        st.session_state.result_df[DISPLAY_COLUMNS],
-                        use_container_width=True,
-                    )
-                except Exception as e:
-                    print(f"항목 {index} 처리 중 오류 발생: {e}")
-
+        progress_bar.empty()
         evaluate_performance()
         if st.session_state.evaluation_result:
             status_placeholder.success(st.session_state.evaluation_result)
