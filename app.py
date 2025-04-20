@@ -147,7 +147,7 @@ def generate_queries(row):
     표준단위: {std_unit}
     쿼리는 순서대로 나열만 해주세요. 설명이나 번호는 필요 없습니다."""
 
-    llm = ChatOpenAI(temperature=0.2, model="gpt-4o-mini")
+    llm = ChatOpenAI(temperature=0.2, model=model_option)
     response = llm.predict(system_prompt + "\n\n" + user_prompt)
     # LLM 응답을 쿼리 목록으로 변환
     llm_queries = [q.strip() for q in response.strip().split("\n") if q.strip()]
@@ -194,7 +194,7 @@ with st.sidebar:
 
     # LLM 모델 선택
     model_option = st.radio(
-        "LLM 모델 선택", ["GPT-4", "Claude 3 Opus", "Claude 3 Sonnet"]
+        "LLM 모델 선택", ["gpt-4o-mini", "claude-3-5-haiku-20241022"]
     )
     # 추출 시작 버튼
     start_button = st.button("사양 추출 시작", type="primary", use_container_width=True)
@@ -237,7 +237,7 @@ download_placeholder = st.empty()
 
 # 성능 평가 llm 처리
 def evaluate_llm(gold_answer, gold_doc, pred, ref_doc):
-    llm = ChatOpenAI(temperature=0.2, model="gpt-4o-mini")
+    llm = ChatOpenAI(temperature=0.2, model=model_option)
     ev_prompt = f"""다음은 정답과 정답의 근거 문서 입니다.
     정답: {gold_answer}
     정답 출처: {gold_doc}
@@ -299,23 +299,39 @@ def evaluate_performance():
 
     # 결과를 데이터프레임에 일괄 할당
     for index, is_correct in results_dict["정답여부"].items():
-        st.session_state.result_df.loc[index, "정답여부"] = is_correct
+        st.session_state.result_df.loc[index, "정답여부"] = (
+            "true" if is_correct else "false"
+        )
 
     for index, is_success in results_dict["검색성공여부"].items():
-        st.session_state.result_df.loc[index, "검색성공여부"] = is_success
+        st.session_state.result_df.loc[index, "검색성공여부"] = (
+            "true" if is_success else "false"
+        )
 
-    # 스타일링 없이 데이터프레임 표시
-    result_placeholder.dataframe(
-        st.session_state.result_df[DISPLAY_COLUMNS], use_container_width=True
-    )
+    # 스타일링 함수 정의
+    def style_dataframe(df):
+        # 정답여부와 검색성공여부에 스타일 적용
+        styler = df.style.applymap(
+            lambda v: (
+                "background-color: #CCFFCC"
+                if v == "true"
+                else "background-color: #FFCCCC"
+            ),
+            subset=["정답여부", "검색성공여부"],
+        )
+        return styler
 
-    # 정답률 계산
-    correct = st.session_state.result_df["정답여부"].sum()
+    # 스타일 적용하여 데이터프레임 표시
+    styled_df = style_dataframe(st.session_state.result_df[DISPLAY_COLUMNS])
+    result_placeholder.dataframe(styled_df, use_container_width=True)
+
+    # 정답률 계산 (원래 불리언 값으로 계산해야 하므로 문자열을 다시 불리언으로 변환)
+    correct = (st.session_state.result_df["정답여부"] == "true").sum()
     total = len(st.session_state.result_df)
     accuracy = correct / total if total > 0 else 0
 
     # 검색 재현율 계산
-    hit = st.session_state.result_df["검색성공여부"].sum()
+    hit = (st.session_state.result_df["검색성공여부"] == "true").sum()
     recall = hit / total if total > 0 else 0
 
     st.session_state.evaluation_result = (
@@ -344,7 +360,7 @@ if start_button and uploaded_file is not None:
             embedding_function=embeddings,
             # persist_directory=persist_directory,
         )
-        k = 5
+        k = 3
         vectorstore.add_documents(chunks)
         vector_retriever = vectorstore.as_retriever(search_kwargs={"k": k})
 
@@ -384,7 +400,7 @@ if start_button and uploaded_file is not None:
                 query["query"] for query in queries if query["query"].strip()
             ]
             query_used = ", ".join(filtered_queries)
-            answer_prompt = f"""다음은 열차 사양서의 여러 부분입니다:
+            answer_prompt = f"""당신은 열차 제작 사양서의 전문가입니다. 다음은 열차 제작 사양서의 여러 부분입니다:
 {ensemble_docs}
 위 문서에서 아래 질의들에 대한 답변과 참조 문서의 목차를 찾아주세요.  
 1), 가) 등 세부 목차 구분자는 포함하되, **문서 제목이나 내용은 포함하지 마세요.** 아래 질의들은 모두 동일 항목에 대한 질문입니다.  
@@ -402,7 +418,7 @@ if start_button and uploaded_file is not None:
 값을 찾을 수 없다면 '정보 없음'이라고 응답해주세요.
 질문: '{query_used}'"""
 
-            llm = ChatOpenAI(temperature=0.2, model="gpt-4o-mini")
+            llm = ChatOpenAI(temperature=0.2, model=model_option)
             answer = llm.predict(answer_prompt)
             values = answer.split("답변:")[1].split(", 참조문서:")[0].strip()
             doc_index = answer.split("참조문서:")[-1].strip()
