@@ -21,10 +21,12 @@ st.set_page_config(page_title="열차 사양서 분석기", page_icon="🚄", la
 st.header("🚄 현대로템 - 열차 공고사양 자동 분석(PoC)")
 st.markdown(
     """📄 본 시스템은 PoC(Proof of Concept)용으로, 공고 사양서 기반 사양 추출 및 평가 자동화를 시연합니다.  
-🧪 사전에 정답이 포함된 데이터셋으로 LLM 추론 및 검색 성능을 평가합니다.
+사전에 정답이 포함된 데이터셋으로 LLM 추론 및 검색 성능을 평가합니다.
 열차 제작 공고 사양서를 업로드 후 모델을 선택하고 '사양 추출 시작' 버튼을 누르세요.  
 
-📊 평가: 
+🤖 사용모델: gpt-4o-mini
+
+📊 평가:  
 LLM 추론 성능 평가 : 정답 기준 F1 / EM(Exact Match)  
 RAG 검색 성능 측정 : Recall@K 방식으로 측정  
 """
