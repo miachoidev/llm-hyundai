@@ -14,9 +14,6 @@ from chunker import convert_docx_to_chunks
 from langchain_community.vectorstores.utils import filter_complex_metadata
 import concurrent.futures
 
-# Disable Chroma telemetry to avoid protobuf issues
-import chromadb
-# chromadb.Client = lambda **kwargs: chromadb.Client(telemetry_enabled=False, **kwargs)
 
 # 페이지 설정
 st.set_page_config(page_title="열차 사양서 분석기", page_icon="🚄", layout="wide")
@@ -223,6 +220,7 @@ with st.sidebar:
 
     # 파일 업로드 버튼
     uploaded_file = st.file_uploader("사양서 파일 업로드 (DOCX)", type=["docx"])
+    openai_api_key = st.sidebar.text_input("OpenAI API Key", type="password")
 
     # LLM 모델 선택
     # model_option = st.radio(
@@ -269,7 +267,7 @@ download_placeholder = st.empty()
 
 # 성능 평가 llm 처리
 def evaluate_llm(gold_answer, gold_doc, pred, ref_doc):
-    llm = ChatOpenAI(temperature=0.2, model=model_option)
+    llm = ChatOpenAI(temperature=0.2, model=model_option, api_key=openai_api_key)
     ev_prompt = f"""다음은 정답과 정답의 근거 문서 입니다.
     정답: {gold_answer}
     정답 출처: {gold_doc}
@@ -384,7 +382,7 @@ if start_button and uploaded_file is not None:
         chunks = convert_docx_to_chunks(uploaded_file)
 
         # OpenAI 임베딩 모델 초기화
-        embeddings = OpenAIEmbeddings()
+        embeddings = OpenAIEmbeddings(api_key=openai_api_key)
 
         # Chroma 벡터 스토어 생성 - 공식 문서 방식대로
         vectorstore = Chroma(
@@ -450,7 +448,9 @@ if start_button and uploaded_file is not None:
 값을 찾을 수 없다면 '정보 없음'이라고 응답해주세요.
 질문: '{query_used}'"""
 
-            llm = ChatOpenAI(temperature=0.2, model=model_option)
+            llm = ChatOpenAI(
+                temperature=0.2, model=model_option, api_key=openai_api_key
+            )
             answer = llm.predict(answer_prompt)
             values = answer.split("답변:")[1].split(", 참조문서:")[0].strip()
             doc_index = answer.split("참조문서:")[-1].strip()
