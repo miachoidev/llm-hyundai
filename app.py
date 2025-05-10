@@ -12,6 +12,7 @@ from langchain.retrievers import EnsembleRetriever
 from chunker import convert_docx_to_chunks
 from langchain_community.vectorstores.utils import filter_complex_metadata
 import concurrent.futures
+import tempfile
 
 # 페이지 설정
 st.set_page_config(page_title="열차 사양서 분석기", page_icon="🚄", layout="wide")
@@ -63,6 +64,7 @@ DISPLAY_COLUMNS = [
     "레벨2",
     "레벨3",
     "레벨4",
+    "표준 단위",
     "정답",
     "정답 목차",
     "LLM응답",
@@ -90,7 +92,7 @@ def load_table_data():
                 "레벨2": ["", ""],
                 "레벨3": ["", ""],
                 "레벨4": ["", ""],
-                "표준단위": ["", ""],
+                "표준 단위": ["", ""],
                 "정답": ["", ""],  # 정답 컬럼 추가
             }
         )
@@ -382,14 +384,16 @@ if start_button and uploaded_file is not None:
         # OpenAI 임베딩 모델 초기화
         embeddings = OpenAIEmbeddings(api_key=openai_api_key)
 
+        # 임시 디렉터리 생성 (persist_directory 지정)
+        persist_directory = tempfile.mkdtemp()
+
         # Chroma 벡터 스토어 생성 - 공식 문서 방식대로
-        vectorstore = Chroma(
-            collection_name="langchain",
-            embedding_function=embeddings,
-            # persist_directory=persist_directory,
+        vectorstore = Chroma.from_documents(
+            documents=chunks,
+            embedding=embeddings,
+            persist_directory=persist_directory,
         )
         k = 3
-        vectorstore.add_documents(chunks)
         vector_retriever = vectorstore.as_retriever(search_kwargs={"k": k})
 
         # BM25 리트리버 생성

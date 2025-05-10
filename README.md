@@ -7,7 +7,9 @@
 
 ## 📋 프로젝트 개요
 
-본 프로젝트는 현대로템의 열차 공고사양서에서 필수 기술 사양을 자동으로 추출하고 분석하는 RAG(Retrieval Augmented Generation) 기반 시스템입니다. 대규모 사양서에서 중요 정보를 빠르게 찾고 분석하는 작업을 자동화하여 업무 효율을 향상시킵니다.
+본 프로젝트는 코레일의 열차 제작 발주 공고문(예: EMU-300 차량 기술사양서)에서 수기로 정리하던 400여 개 항목의 사양 정보(수치, 규격, 규정 등)를 대규모 언어 모델(LLM) 기반으로 자동 추출·분석하고, 이를 데이터베이스화하여 기존의 엑셀 관리 방식에서 전산 시스템 기반 관리로 전환한 PoC(Proof of Concept) 프로젝트입니다.
+
+이 시스템은 RAG(Retrieval-Augmented Generation) 아키텍처를 적용하여 사양서를 문서 전체에서 검색 후 핵심 정보를 정확하게 추출하는 방식으로 설계되었습니다.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/miachoidev/llm-hyundai/main/docs/demo_result.png" alt="main" width="800"/>
@@ -112,6 +114,10 @@ streamlit run app.py
 시스템은 다음 지표로 성능을 평가합니다:
 - **LLM 추론 성능**: 정답 기준 F1 / EM(Exact Match)
 - **RAG 검색 성능**: Recall@K 측정 방식
+
+총 3단계에 걸쳐 검색 및 응답 성능을 평가한 결과, 쿼리 확장을 적용함으로써 검색 정확도(Recall)와 LLM 응답 정확도(Accuracy)가 모두 크게 향상됨을 확인할 수 있었습니다.
+
+특히 3차 실험에서는 **동의어 사전을 별도로 구축하지 않고도**, 자연어 기반의 다양한 표현을 포함한 쿼리 확장만으로 높은 성능을 달성했습니다.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/miachoidev/llm-hyundai/main/docs/performance.png" alt="성능 그래프" width="600"/>
