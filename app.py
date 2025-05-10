@@ -1,5 +1,7 @@
+# SQLite3 버전 문제 해결을 위한 코드
 import streamlit as st
 import pandas as pd
+import sys
 import os
 import tempfile
 import re
@@ -13,6 +15,9 @@ from langchain.retrievers import EnsembleRetriever
 from chunker import convert_docx_to_chunks
 from langchain_community.vectorstores.utils import filter_complex_metadata
 import concurrent.futures
+
+__import__("pysqlite3")
+sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
 
 
 # 페이지 설정
