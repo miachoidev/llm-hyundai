@@ -32,6 +32,29 @@ RAG 검색 성능 측정 : Recall@K 방식으로 측정
 """
 )
 
+# 시스템 흐름도 추가
+with st.expander("시스템 프로세스 흐름도 보기"):
+    st.graphviz_chart("""
+    digraph {
+        node [shape=box, style=filled, color=lightblue, fontname="나눔고딕"];
+        
+        upload [label="공고 사양서 업로드"];
+        chunk [label="사양문서 청킹 및 임베딩"];
+        query [label="공고항목별 검색쿼리 확장"];
+        ensemble_search [label="확장쿼리로 ensemble_search"];
+        llm [label="검색한 청크 기반 LLM 답변 추출 요청"];
+        eval [label="성능 평가 (정확도/검색 재현율)"];
+        
+        upload -> chunk;
+        chunk -> query;
+        query -> ensemble_search;
+        ensemble_search -> llm;
+        llm -> eval;
+        
+        {rank=same; upload chunk query ensemble_search}
+    }
+    """)
+
 # model
 model_option = "gpt-4o-mini"
 

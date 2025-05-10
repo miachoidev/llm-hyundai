@@ -10,7 +10,7 @@
 본 프로젝트는 현대로템의 열차 공고사양서에서 필수 기술 사양을 자동으로 추출하고 분석하는 RAG(Retrieval Augmented Generation) 기반 시스템입니다. 대규모 사양서에서 중요 정보를 빠르게 찾고 분석하는 작업을 자동화하여 업무 효율을 크게 향상시킵니다.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yourusername/llm-hyundai/main/docs/demo_result.png" alt="main" width="800"/>
+  <img src="https://raw.githubusercontent.com/miachoidev/llm-hyundai/main/docs/demo_result.png" alt="main" width="800"/>
   <br>
   <em>시스템 데모 화면</em>
  
@@ -26,7 +26,6 @@
 - **사양 추출**: 문서 내 핵심 기술 사양 자동 추출
 - **정확도 평가**: 추출된 사양의 정확도를 자동으로 검증
 - **검색 성능 측정**: Recall@K 방식으로 검색 성능 측정
-- **직관적 UI**: Streamlit 기반의 사용자 친화적 인터페이스
 
 ## 🔧 기술 스택
 
@@ -42,7 +41,7 @@
 이 시스템은 RAG(Retrieval Augmented Generation) 아키텍처를 기반으로 구축되었습니다. 아래 다이어그램은 전체 시스템의 작동 방식을 보여줍니다:
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yourusername/llm-hyundai/main/docs/architecture.png" alt="시스템 아키텍처" width="800"/>
+  <img src="https://raw.githubusercontent.com/miachoidev/llm-hyundai/main/docs/architecture.png" alt="시스템 아키텍처" width="800"/>
   <br>
   <em>시스템 아키텍처 다이어그램</em>
 </p>
@@ -66,7 +65,7 @@
 
 ```bash
 # 저장소 클론
-git clone https://github.com/yourusername/llm-hyundai.git
+git clone https://github.com/miachoidev/llm-hyundai.git
 cd llm-hyundai
 
 # 가상환경 생성 (선택사항)
@@ -118,7 +117,7 @@ streamlit run app.py
 - **RAG 검색 성능**: Recall@K 측정 방식
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yourusername/llm-hyundai/main/docs/performance.png" alt="성능 그래프" width="600"/>
+  <img src="https://raw.githubusercontent.com/miachoidev/llm-hyundai/main/docs/performance.png" alt="성능 그래프" width="600"/>
   <br>
   <em>성능 평가 결과</em>
 </p>
