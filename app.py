@@ -1,27 +1,17 @@
 # SQLite3 버전 문제 해결을 위한 코드
-# 스트림릿 클라우드 배포를 위해 아래 라이브러리 필요
-# 주의: 의존성 충돌 방지를 위해 chromadb 버전 지정
-# pip install streamlit streamlit-chromadb-connection==0.0.5 langchain-openai langchain-community pysqlite3-binary openai chromadb==0.4.18
 import streamlit as st
 import pandas as pd
-import sys
 import os
-import tempfile
-import re
 from difflib import SequenceMatcher
 from langchain_core.documents import Document as LangchainDocument
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from streamlit_chromadb_connection import ChromadbConnection
+from langchain_chroma import Chroma
 from langchain_community.retrievers import BM25Retriever
 from langchain.retrievers import EnsembleRetriever
 from chunker import convert_docx_to_chunks
 from langchain_community.vectorstores.utils import filter_complex_metadata
 import concurrent.futures
-
-__import__("pysqlite3")
-sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
-
 
 # 페이지 설정
 st.set_page_config(page_title="열차 사양서 분석기", page_icon="🚄", layout="wide")
@@ -392,37 +382,23 @@ if start_button and uploaded_file is not None:
         # OpenAI 임베딩 모델 초기화
         embeddings = OpenAIEmbeddings(api_key=openai_api_key)
 
-        # 스트림릿 크로마DB 연결 설정
-        configuration = {
-            "client": "PersistentClient",
-            "path": "./.chroma",  # 스트림릿 클라우드에서 접근 가능한 임시 경로
-        }
-
-        conn = st.connection("chromadb", type=ChromadbConnection, **configuration)
-
-        # 컬렉션 생성 또는 가져오기
-        collection_name = "hyundai_spec_collection"
-
-        # 컬렉션에 문서 추가
-        documents = [chunk.page_content for chunk in chunks]
-        metadatas = [chunk.metadata for chunk in chunks]
-        ids = [f"id_{i}" for i in range(len(chunks))]
-
-        # 컬렉션 생성 및 문서 추가
-        conn.add_documents(
-            collection_name=collection_name,
-            documents=documents,
-            metadatas=metadatas,
-            ids=ids,
-            embeddings_model="openai",
-            api_key=openai_api_key,
+        # Chroma 벡터 스토어 생성 - 공식 문서 방식대로
+        vectorstore = Chroma(
+            collection_name="langchain",
+            embedding_function=embeddings,
+            # persist_directory=persist_directory,
         )
-
-        # 크로마DB 리트리버 생성
         k = 3
+        vectorstore.add_documents(chunks)
+        vector_retriever = vectorstore.as_retriever(search_kwargs={"k": k})
 
         # BM25 리트리버 생성
         bm25_retriever = BM25Retriever.from_documents(chunks)
+
+        ensemble = EnsembleRetriever(
+            retrievers=[vector_retriever, bm25_retriever],
+            weights=[0.5, 0.5],
+        )
 
         # 문서 청킹/벡터화 완료 후 데이터 추출 시작
         status_placeholder.success("문서 벡터화 완료. 사양 정보 병렬 추출 중...")
@@ -432,40 +408,18 @@ if start_button and uploaded_file is not None:
             index, row = args
             ensemble_docs = []
             queries = generate_queries(row)
-
             for query in queries:
-                # 크로마DB에서 검색
-                if query["query"].strip():
-                    results = conn.query(
-                        collection_name=collection_name,
-                        query_texts=[query["query"]],
-                        n_results=k,
-                        embeddings_model="openai",
-                        api_key=openai_api_key,
-                    )
-
-                    # 결과를 랭체인 Document 형식으로 변환
-                    if results and "documents" in results and results["documents"]:
-                        for i, doc_text in enumerate(results["documents"][0]):
-                            metadata = (
-                                results["metadatas"][0][i]
-                                if "metadatas" in results and results["metadatas"]
-                                else {}
-                            )
-                            doc = LangchainDocument(
-                                page_content=doc_text, metadata=metadata
-                            )
-                            ensemble_docs.append(doc)
-
-                # BM25 검색 결과도 추가
-                bm25_docs = bm25_retriever.get_relevant_documents(query["query"])
-                ensemble_docs.extend(bm25_docs)
+                docs = ensemble.get_relevant_documents(query["query"])
+                ensemble_docs.extend(docs)
 
             # 중복 제거
             unique_docs = {}
             for doc in ensemble_docs:
-                # doc 객체의 id 필드를 사용하거나 내용으로 구분
-                doc_key = doc.page_content
+                # doc 객체의 id 필드를 사용
+                if hasattr(doc, "id"):
+                    doc_key = doc.id
+                else:
+                    doc_key = doc.page_content
                 unique_docs[doc_key] = doc
             ensemble_docs = list(unique_docs.values())
 
@@ -474,8 +428,6 @@ if start_button and uploaded_file is not None:
                 query["query"] for query in queries if query["query"].strip()
             ]
             query_used = ", ".join(filtered_queries)
-
-            # 이하 동일한 프롬프트 처리 로직 유지
             answer_prompt = f"""당신은 열차 제작 사양서의 전문가입니다. 다음은 열차 제작 사양서의 여러 부분입니다:
 {ensemble_docs}
 위 문서에서 아래 질의들에 대한 답변과 참조 문서의 목차를 찾아주세요.  
