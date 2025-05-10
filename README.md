@@ -16,9 +16,6 @@
  
 </p>
 
-## 📱 데모
- [ 🌐 프로젝트 배포 링크](https://llm-hyundai-gx3meqkrkwmfkcr2692yor.streamlit.app/)
-
 
 ## ✨ 주요 기능
 
