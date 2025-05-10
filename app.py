@@ -14,6 +14,11 @@ from chunker import convert_docx_to_chunks
 from langchain_community.vectorstores.utils import filter_complex_metadata
 import concurrent.futures
 
+# Disable Chroma telemetry to avoid protobuf issues
+import chromadb
+
+chromadb.Client = lambda **kwargs: chromadb.Client(telemetry_enabled=False, **kwargs)
+
 # 페이지 설정
 st.set_page_config(page_title="열차 사양서 분석기", page_icon="🚄", layout="wide")
 
