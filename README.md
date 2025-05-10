@@ -7,7 +7,7 @@
 
 ## 📋 프로젝트 개요
 
-본 프로젝트는 현대로템의 열차 공고사양서에서 필수 기술 사양을 자동으로 추출하고 분석하는 RAG(Retrieval Augmented Generation) 기반 시스템입니다. 대규모 사양서에서 중요 정보를 빠르게 찾고 분석하는 작업을 자동화하여 업무 효율을 크게 향상시킵니다.
+본 프로젝트는 현대로템의 열차 공고사양서에서 필수 기술 사양을 자동으로 추출하고 분석하는 RAG(Retrieval Augmented Generation) 기반 시스템입니다. 대규모 사양서에서 중요 정보를 빠르게 찾고 분석하는 작업을 자동화하여 업무 효율을 향상시킵니다.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/miachoidev/llm-hyundai/main/docs/demo_result.png" alt="main" width="800"/>
