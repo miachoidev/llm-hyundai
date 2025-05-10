@@ -1,6 +1,7 @@
 # SQLite3 버전 문제 해결을 위한 코드
 # 스트림릿 클라우드 배포를 위해 아래 라이브러리 필요
-# pip install streamlit streamlit-chromadb-connection langchain-openai langchain-community pysqlite3-binary openai
+# 주의: 의존성 충돌 방지를 위해 chromadb 버전 지정
+# pip install streamlit streamlit-chromadb-connection==0.0.5 langchain-openai langchain-community pysqlite3-binary openai chromadb==0.4.18
 import streamlit as st
 import pandas as pd
 import sys
