@@ -16,8 +16,7 @@ import concurrent.futures
 
 # Disable Chroma telemetry to avoid protobuf issues
 import chromadb
-
-chromadb.Client = lambda **kwargs: chromadb.Client(telemetry_enabled=False, **kwargs)
+# chromadb.Client = lambda **kwargs: chromadb.Client(telemetry_enabled=False, **kwargs)
 
 # 페이지 설정
 st.set_page_config(page_title="열차 사양서 분석기", page_icon="🚄", layout="wide")
@@ -50,7 +49,7 @@ with st.expander("시스템 프로세스 흐름도 보기"):
         llm [label="검색한 청크 기반 LLM 답변 추출 요청"];
         eval [label="성능 평가 (정확도/검색 재현율)"];
         
-        upload -> chunk;
+        up;
         chunk -> query;
         query -> ensemble_search;
         ensemble_search -> llm;
