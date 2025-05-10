@@ -30,6 +30,9 @@ RAG 검색 성능 측정 : Recall@K 방식으로 측정
 """
 )
 
+# model
+model_option = "gpt-4o-mini"
+
 # 데이터프레임에서 표시할 열 목록 정의
 DISPLAY_COLUMNS = [
     "레벨1",
@@ -152,7 +155,7 @@ def generate_queries(row):
     # LLM 응답을 쿼리 목록으로 변환
     llm_queries = [q.strip() for q in response.strip().split("\n") if q.strip()]
     for i, q in enumerate(llm_queries):
-        queries.append({"type": f"llm_generated_{i+1}", "query": q})
+        queries.append({"type": f"llm_generated_{i + 1}", "query": q})
     return queries
 
 
@@ -193,9 +196,9 @@ with st.sidebar:
     uploaded_file = st.file_uploader("사양서 파일 업로드 (DOCX)", type=["docx"])
 
     # LLM 모델 선택
-    model_option = st.radio(
-        "LLM 모델 선택", ["gpt-4o-mini", "claude-3-5-haiku-20241022"]
-    )
+    # model_option = st.radio(
+    #     "LLM 모델 선택", ["gpt-4o-mini", "claude-3-5-haiku-20241022"]
+    # )
     # 추출 시작 버튼
     start_button = st.button("사양 추출 시작", type="primary", use_container_width=True)
 
